@@ -7,7 +7,10 @@ import 'development_form_page.dart';
 class DevelopmentTargetsListPage extends StatefulWidget {
   final String childId;
 
-  const DevelopmentTargetsListPage({super.key, required this.childId});
+  const DevelopmentTargetsListPage({
+    super.key,
+    required this.childId,
+  });
 
   @override
   State<DevelopmentTargetsListPage> createState() =>
@@ -26,42 +29,64 @@ class _DevelopmentTargetsListPageState
 
   Future<List<DevelopmentTarget>> _loadTargets() async {
     final db = Provider.of<DatabaseServiceAPI>(context, listen: false);
-    return await db.getDevelopmentTargets(widget.childId);
+    return db.getDevelopmentTargets(widget.childId);
   }
+
+  // ================= STATUS HELPERS =================
+
+  bool _isAllDone(DevelopmentTarget t) {
+    return t.physicalDone && t.cognitiveDone && t.socialDone;
+  }
+
+  bool _isPartiallyDone(DevelopmentTarget t) {
+    return !_isAllDone(t) &&
+        (t.physicalDone || t.cognitiveDone || t.socialDone);
+  }
+
+  Color _cardColor(DevelopmentTarget t) {
+    if (_isAllDone(t)) return Colors.green.shade50;
+    if (_isPartiallyDone(t)) return Colors.yellow.shade50;
+    return Colors.white;
+  }
+
+  String _statusText(DevelopmentTarget t) {
+    if (_isAllDone(t)) return 'Perkembangan normal';
+    if (_isPartiallyDone(t)) return 'Perlu pengecekan';
+    return 'Belum diisi';
+  }
+
+  Color _statusColor(DevelopmentTarget t) {
+    if (_isAllDone(t)) return Colors.green;
+    if (_isPartiallyDone(t)) return Colors.orange;
+    return Colors.grey;
+  }
+
+  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Perkembangan Anak"),
+        title: const Text('Perkembangan Anak'),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DevelopmentFormPage(childId: widget.childId),
-            ),
-          );
-          setState(() {
-            targetsFuture = _loadTargets();
-          });
-        },
+        onPressed: _addNewTarget,
         child: const Icon(Icons.add),
       ),
       body: FutureBuilder<List<DevelopmentTarget>>(
         future: targetsFuture,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final targets = snapshot.data!;
-          if (targets.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
-              child: Text("Belum ada data perkembangan."),
+              child: Text('Belum ada data perkembangan'),
             );
           }
+
+          final targets = snapshot.data!;
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -69,21 +94,29 @@ class _DevelopmentTargetsListPageState
             itemBuilder: (_, index) {
               final t = targets[index];
 
-              final allDone = t.physicalDone && t.cognitiveDone && t.socialDone;
-
               return Card(
-                color: allDone ? Colors.green[50] : Colors.white,
+                color: _cardColor(t),
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
+                  title: Text(
+                    'Usia ${t.ageInMonths} bulan',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    _statusText(t),
+                    style: TextStyle(
+                      color: _statusColor(t),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () async {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => DevelopmentFormPage(
                           childId: widget.childId,
-                          targetData: t,
                           ageInMonths: t.ageInMonths,
-                          // <-- kirim data lama
+                          targetData: t,
                         ),
                       ),
                     );
@@ -92,15 +125,6 @@ class _DevelopmentTargetsListPageState
                       targetsFuture = _loadTargets();
                     });
                   },
-                  title: Text("Usia ${t.ageInMonths} bulan"),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildStatus("Fisik", t.physicalDone),
-                      _buildStatus("Kognitif", t.cognitiveDone),
-                      _buildStatus("Sosial", t.socialDone),
-                    ],
-                  ),
                 ),
               );
             },
@@ -110,17 +134,54 @@ class _DevelopmentTargetsListPageState
     );
   }
 
-  Widget _buildStatus(String label, bool done) {
-    return Row(
-      children: [
-        Icon(
-          done ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: done ? Colors.green : Colors.grey,
-          size: 18,
+  // ================= ADD TARGET =================
+
+  Future<void> _addNewTarget() async {
+    final ageController = TextEditingController();
+
+    final age = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Tambah Perkembangan'),
+        content: TextField(
+          controller: ageController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Umur (bulan)',
+          ),
         ),
-        const SizedBox(width: 6),
-        Text(label),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final parsed = int.tryParse(ageController.text.trim());
+              if (parsed != null) {
+                Navigator.pop(context, parsed);
+              }
+            },
+            child: const Text('Lanjut'),
+          ),
+        ],
+      ),
     );
+
+    if (age == null) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DevelopmentFormPage(
+          childId: widget.childId,
+          ageInMonths: age,
+        ),
+      ),
+    );
+
+    setState(() {
+      targetsFuture = _loadTargets();
+    });
   }
 }

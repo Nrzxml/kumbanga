@@ -6,7 +6,7 @@ class InformationScreen extends StatefulWidget {
   const InformationScreen({super.key});
 
   @override
-  _InformationScreenState createState() => _InformationScreenState();
+  State<InformationScreen> createState() => _InformationScreenState();
 }
 
 class _InformationScreenState extends State<InformationScreen> {
@@ -15,22 +15,22 @@ class _InformationScreenState extends State<InformationScreen> {
 
   Future<void> fetchInformasi() async {
     try {
-      final res = await http.get(Uri.parse(
-        "http://10.0.2.2/kumbanga_api/get_informasi.php",
-      ));
+      final res = await http.get(
+        Uri.parse("http://10.0.2.2/kumbanga_api/get_informasi.php"),
+      );
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
 
         setState(() {
-          _informasi = data["data"];
+          _informasi = data["data"] ?? [];
           _isLoading = false;
         });
       } else {
         throw Exception("Gagal mengambil data");
       }
     } catch (e) {
-      print("ERROR: $e");
+      debugPrint("ERROR: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -44,6 +44,13 @@ class _InformationScreenState extends State<InformationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Informasi'),
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      backgroundColor: const Color(0xfff6f6f6),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _informasi.isEmpty
@@ -64,13 +71,14 @@ class _InformationScreenState extends State<InformationScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      elevation: 2,
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item['judul'],
+                              item['judul'] ?? '',
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -78,7 +86,7 @@ class _InformationScreenState extends State<InformationScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              item['deskripsi'],
+                              item['deskripsi'] ?? '',
                               style: const TextStyle(fontSize: 15),
                             ),
                           ],

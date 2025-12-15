@@ -69,11 +69,6 @@ class _AdminDonationScreenState extends State<AdminDonationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Kelola Donasi"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.push(

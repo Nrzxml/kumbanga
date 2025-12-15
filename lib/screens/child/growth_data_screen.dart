@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:kumbanga/services/database_service_api.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/growth_data.dart';
 
 class GrowthDataScreen extends StatefulWidget {
+  final String childId;
+  final String childName;
   final bool isEdit;
 
-  const GrowthDataScreen({super.key, this.isEdit = false});
+  const GrowthDataScreen({
+    super.key,
+    required this.childId,
+    required this.childName,
+    this.isEdit = false,
+  });
 
   @override
-  _GrowthDataScreenState createState() => _GrowthDataScreenState();
+  State<GrowthDataScreen> createState() => _GrowthDataScreenState();
 }
 
 class _GrowthDataScreenState extends State<GrowthDataScreen> {
@@ -18,42 +24,9 @@ class _GrowthDataScreenState extends State<GrowthDataScreen> {
   final _heightController = TextEditingController();
   final _headCircumferenceController = TextEditingController();
   final _notesController = TextEditingController();
+
   DateTime _measurementDate = DateTime.now();
-
-  String? _selectedChildName;
-  String? _selectedChildId;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSelectedChild();
-  }
-
-  /// 🔹 Ambil data anak aktif dari SharedPreferences
-  Future<void> _loadSelectedChild() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selectedChildName = prefs.getString('selectedChildName');
-      _selectedChildId = prefs.getString('selectedChildId');
-    });
-
-    debugPrint('🧒 Anak aktif: $_selectedChildName ($_selectedChildId)');
-  }
-
-  /// 🔹 Pilih tanggal pengukuran
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _measurementDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null && picked != _measurementDate) {
-      setState(() {
-        _measurementDate = picked;
-      });
-    }
-  }
+  bool _isSaving = false;
 
   @override
   Widget build(BuildContext context) {
@@ -65,262 +38,167 @@ class _GrowthDataScreenState extends State<GrowthDataScreen> {
         backgroundColor: Colors.green[800],
         foregroundColor: Colors.white,
       ),
-      body: _selectedChildId == null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.warning, color: Colors.orange, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Belum ada anak yang dipilih.',
-                    style: TextStyle(fontSize: 16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ===== INFO ANAK =====
+              Card(
+                color: Colors.green[50],
+                child: ListTile(
+                  leading: const Icon(Icons.child_care,
+                      color: Colors.green, size: 30),
+                  title: Text(
+                    widget.childName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Silakan pilih anak terlebih dahulu.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[800],
-                    ),
-                    child: const Text('Kembali'),
-                  )
-                ],
-              ),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 🔹 Tampilkan anak aktif
-                    Card(
-                      color: Colors.green[50],
-                      child: ListTile(
-                        leading: const Icon(Icons.child_care,
-                            color: Colors.green, size: 30),
-                        title: Text(
-                          _selectedChildName ?? 'Anak tidak dikenal',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        subtitle: Text('ID: $_selectedChildId'),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Tanggal Pengukuran
-                    GestureDetector(
-                      onTap: _selectDate,
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Tanggal Pengukuran',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                '${_measurementDate.day}/${_measurementDate.month}/${_measurementDate.year}',
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                              const Icon(Icons.calendar_today,
-                                  color: Colors.grey),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Berat Badan
-                    TextFormField(
-                      controller: _weightController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Berat Badan (kg)',
-                        prefixIcon: const Icon(Icons.monitor_weight),
-                        suffixText: 'kg',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Berat badan harus diisi';
-                        }
-                        final weight = double.tryParse(value);
-                        if (weight == null || weight <= 0) {
-                          return 'Berat badan tidak valid';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Tinggi Badan
-                    TextFormField(
-                      controller: _heightController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Tinggi Badan (cm)',
-                        prefixIcon: const Icon(Icons.height),
-                        suffixText: 'cm',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Tinggi badan harus diisi';
-                        }
-                        final height = double.tryParse(value);
-                        if (height == null || height <= 0) {
-                          return 'Tinggi badan tidak valid';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Lingkar Kepala
-                    TextFormField(
-                      controller: _headCircumferenceController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Lingkar Kepala (cm)',
-                        prefixIcon: const Icon(Icons.circle),
-                        suffixText: 'cm',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Lingkar kepala harus diisi';
-                        }
-                        final circumference = double.tryParse(value);
-                        if (circumference == null || circumference <= 0) {
-                          return 'Lingkar kepala tidak valid';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Catatan
-                    TextFormField(
-                      controller: _notesController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: 'Catatan (opsional)',
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-
-                    // Tombol Simpan
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _saveData,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[800],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          widget.isEdit ? 'UPDATE DATA' : 'SIMPAN DATA',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  subtitle: Text('ID: ${widget.childId}'),
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+
+              // ===== TANGGAL =====
+              GestureDetector(
+                onTap: _selectDate,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Tanggal Pengukuran',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(
+                          '${_measurementDate.day}/${_measurementDate.month}/${_measurementDate.year}',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const Icon(Icons.calendar_today, color: Colors.grey),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              _numberField(
+                controller: _weightController,
+                label: 'Berat Badan (kg)',
+                icon: Icons.monitor_weight,
+              ),
+              const SizedBox(height: 20),
+
+              _numberField(
+                controller: _heightController,
+                label: 'Tinggi Badan (cm)',
+                icon: Icons.height,
+              ),
+              const SizedBox(height: 20),
+
+              _numberField(
+                controller: _headCircumferenceController,
+                label: 'Lingkar Kepala (cm)',
+                icon: Icons.circle,
+              ),
+              const SizedBox(height: 20),
+
+              TextFormField(
+                controller: _notesController,
+                maxLines: 3,
+                decoration: _decoration('Catatan (opsional)'),
+              ),
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[800],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isSaving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          widget.isEdit ? 'UPDATE DATA' : 'SIMPAN DATA',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  /// 🔹 Simpan data ke server
-  void _saveData() async {
-    if (_formKey.currentState!.validate()) {
-      final growthData = GrowthData(
-        date: _measurementDate,
-        weight: double.parse(_weightController.text),
-        height: double.parse(_heightController.text),
-        headCircumference: double.parse(_headCircumferenceController.text),
-        notes: _notesController.text.isNotEmpty ? _notesController.text : '',
+  // ===== HELPERS =====
+  InputDecoration _decoration(String label) => InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.white,
       );
 
-      if (_selectedChildId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gagal menyimpan: anak belum dipilih'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+  Widget _numberField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: _decoration(label).copyWith(prefixIcon: Icon(icon)),
+      validator: (v) {
+        if (v == null || v.isEmpty) return 'Wajib diisi';
+        final n = double.tryParse(v);
+        if (n == null || n <= 0) return 'Nilai tidak valid';
+        return null;
+      },
+    );
+  }
 
-      try {
-        final api = DatabaseServiceAPI();
-        final success = await api.addGrowthData(_selectedChildId!, growthData);
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _measurementDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _measurementDate = picked);
+  }
 
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(widget.isEdit
-                  ? 'Data berhasil diupdate ke server'
-                  : 'Data berhasil disimpan ke server'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, growthData);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gagal menyimpan data ke server'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Terjadi kesalahan: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+  Future<void> _saveData() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    final data = GrowthData(
+      date: _measurementDate,
+      weight: double.parse(_weightController.text),
+      height: double.parse(_heightController.text),
+      headCircumference: double.parse(_headCircumferenceController.text),
+      notes: _notesController.text,
+    );
+
+    final api = DatabaseServiceAPI();
+    final success = await api.addGrowthData(widget.childId, data);
+
+    setState(() => _isSaving = false);
+
+    if (success) {
+      Navigator.pop(context, data);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal menyimpan data')),
+      );
     }
   }
 

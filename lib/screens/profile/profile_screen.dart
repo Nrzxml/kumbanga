@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../services/auth_service.dart';
-import '../../models/user.dart';
+import '../../screens/auth/login_screen.dart'; // ⬅️ ganti jika beda
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  _ProfileScreenState createState() => _ProfileScreenState();
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
@@ -17,24 +19,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = authService.currentUser;
 
     return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text('Profil'),
-      //   backgroundColor: Colors.green[800],
-      //   foregroundColor: Colors.white,
-      // ),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      backgroundColor: const Color(0xfff6f6f6),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // HEADER PROFIL
+            // ================= HEADER PROFIL =================
             Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
                     const CircleAvatar(
                       radius: 40,
-                      child: Icon(Icons.person, size: 40),
+                      backgroundColor: Colors.green,
+                      child: Icon(Icons.person, size: 40, color: Colors.white),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -47,20 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 4),
                     Text(
                       user?.email ?? 'email@example.com',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      // children: [
-                      //   _buildStatItem(
-                      //       'Check-in', '${user?.checkInCount ?? 0}'),
-                      //   _buildStatItem(
-                      //       'Anak', '${user?.childrenIds.length ?? 0}'),
-                      //   _buildStatItem('Poin', '150'),
-                      // ],
+                      style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -69,30 +65,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 24),
 
-            // MENU LIST SEDERHANA
+            // ================= MENU =================
             Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: const Text('Edit Profil'),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () => _showEditProfileDialog(user),
-                  ),
-                  const Divider(),
-                  ListTile(
                     leading: const Icon(Icons.info_outline),
                     title: const Text('Tentang'),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      // Navigate to About
-                    },
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: _showAboutDialog,
                   ),
-                  const Divider(),
+                  const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.logout, color: Colors.red),
-                    title: const Text('Keluar'),
-                    onTap: _logout,
+                    title: const Text(
+                      'Keluar',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onTap: _confirmLogout,
                   ),
                 ],
               ),
@@ -103,30 +97,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.green,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Logout confirm
-  void _logout() {
+  // ================= KONFIRMASI LOGOUT =================
+  void _confirmLogout() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -138,13 +110,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
-              final authService =
-                  Provider.of<AuthService>(context, listen: false);
-              authService.logout();
-              Navigator.popUntil(context, (route) => route.isFirst);
-            },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(context);
+              _logout();
+            },
             child: const Text('Keluar'),
           ),
         ],
@@ -152,51 +122,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Edit Profil popup
-  void _showEditProfileDialog(User? user) {
-    final nameController = TextEditingController(text: user?.fullName);
-    final emailController = TextEditingController(text: user?.email);
-    final phoneController = TextEditingController(text: user?.phone);
+  // ================= LOGOUT (FINAL) =================
+  Future<void> _logout() async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final prefs = await SharedPreferences.getInstance();
 
+    // 🔥 CLEAR SESSION
+    await prefs.clear();
+
+    // 🔥 CLEAR PROVIDER USER
+    auth.logout();
+
+    // 🔁 REDIRECT KE LOGIN (NO BACK)
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  // ================= TENTANG =================
+  void _showAboutDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Profil'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextFormField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Nama Lengkap'),
-              ),
-              TextFormField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
-              TextFormField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: 'Nomor Telepon'),
-              ),
-            ],
-          ),
+        title: const Text('Tentang Aplikasi'),
+        content: const Text(
+          'Kumbanga adalah aplikasi pemantauan tumbuh kembang anak '
+          'untuk membantu orang tua mendeteksi risiko stunting sejak dini.\n\n'
+          'Versi: 1.0.0',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // TODO: Implement update profile
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Profil berhasil diperbarui'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            child: const Text('Simpan'),
+            child: const Text('Tutup'),
           ),
         ],
       ),

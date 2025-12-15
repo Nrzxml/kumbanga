@@ -18,6 +18,7 @@ class MonitorChildScreen extends StatefulWidget {
 class _MonitorChildScreenState extends State<MonitorChildScreen> {
   bool isLoading = true;
   bool isGrowthLoading = false;
+
   List<Child> children = [];
   Child? selectedChild;
   List<GrowthData> growthDataList = [];
@@ -28,6 +29,7 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
     _loadChildren();
   }
 
+  // ================= LOAD CHILD =================
   Future<void> _loadChildren() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('userId');
@@ -41,19 +43,27 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
       final api = DatabaseServiceAPI();
       final result = await api.getChildrenByUser(userId);
 
+      if (!mounted) return;
+
       setState(() {
         children = result;
         isLoading = false;
-        if (children.isNotEmpty) selectedChild = children.first;
+
+        if (children.isNotEmpty && selectedChild == null) {
+          selectedChild = children.first;
+        }
       });
 
-      if (selectedChild != null) await _loadGrowthData(selectedChild!.id);
+      if (selectedChild != null) {
+        await _loadGrowthData(selectedChild!.id);
+      }
     } catch (e) {
       debugPrint('Error load children: $e');
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
+  // ================= LOAD GROWTH DATA =================
   Future<void> _loadGrowthData(String childId) async {
     setState(() => isGrowthLoading = true);
     try {
@@ -70,22 +80,7 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
     }
   }
 
-  Map<String, List<double>> _convertGrowthData(List<GrowthData> list) {
-    if (list.isEmpty) {
-      return {
-        'Berat Badan': [0.0],
-        'Tinggi Badan': [0.0],
-        'Lingkar Kepala': [0.0],
-      };
-    }
-    return {
-      'Berat Badan': list.map((e) => e.weight.toDouble()).toList(),
-      'Tinggi Badan': list.map((e) => e.height.toDouble()).toList(),
-      'Lingkar Kepala':
-          list.map((e) => e.headCircumference.toDouble()).toList(),
-    };
-  }
-
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -95,6 +90,11 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pantau Anak'),
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+      ),
       backgroundColor: const Color(0xfff6f6f6),
       body: children.isEmpty
           ? _buildEmptyState(context)
@@ -102,6 +102,7 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
     );
   }
 
+  // ================= EMPTY STATE =================
   Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Padding(
@@ -111,11 +112,15 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
           children: [
             const Icon(Icons.child_care, size: 90, color: Colors.grey),
             const SizedBox(height: 20),
-            const Text('Belum ada data anak',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              'Belum ada data anak',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            const Text('Silakan tambahkan data anak terlebih dahulu.',
-                style: TextStyle(color: Colors.grey)),
+            const Text(
+              'Silakan tambahkan data anak terlebih dahulu.',
+              style: TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               icon: const Icon(Icons.add),
@@ -123,14 +128,13 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green[600],
                 foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
               ),
               onPressed: () async {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const RegisterChildScreen()),
+                    builder: (_) => const RegisterChildScreen(),
+                  ),
                 );
                 _loadChildren();
               },
@@ -141,81 +145,65 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
     );
   }
 
+  // ================= MAIN CONTENT =================
   Widget _buildMonitorContent(BuildContext context) {
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () async {
-          if (selectedChild != null) await _loadGrowthData(selectedChild!.id);
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildChildSelector(),
-              const SizedBox(height: 20),
-              _buildActionButtons(context),
-              const SizedBox(height: 20),
-              if (isGrowthLoading)
-                const Center(child: CircularProgressIndicator())
-              else
-                GrowthChart(chartData: _convertGrowthData(growthDataList)),
-              const SizedBox(height: 20),
-              DevelopmentTargetsWidget(
-                key: ValueKey(selectedChild!.id),
-                childId: selectedChild!.id,
-              ),
-            ],
-          ),
-        ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildChildSelector(),
+          const SizedBox(height: 20),
+          _buildActionButtons(context),
+          const SizedBox(height: 20),
+          if (isGrowthLoading)
+            const CircularProgressIndicator()
+          else
+            GrowthChart(
+              chartData: {
+                'Berat Badan': growthDataList.map((e) => e.weight).toList(),
+                'Tinggi Badan': growthDataList.map((e) => e.height).toList(),
+                'Lingkar Kepala':
+                    growthDataList.map((e) => e.headCircumference).toList(),
+              },
+            ),
+          const SizedBox(height: 20),
+          if (selectedChild != null)
+            DevelopmentTargetsWidget(
+              childId: selectedChild!.id,
+            ),
+        ],
       ),
     );
   }
 
+  // ================= CHILD SELECTOR =================
   Widget _buildChildSelector() {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            const Icon(Icons.child_care, size: 30),
-            const SizedBox(width: 16),
-            Expanded(
-              child: DropdownButton<Child>(
-                isExpanded: true,
-                value: selectedChild,
-                underline: const SizedBox(),
-                items: children
-                    .map(
-                      (child) => DropdownMenuItem(
-                        value: child,
-                        child: Text(child.name,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w500)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) async {
-                  if (value == null) return;
-                  setState(() => selectedChild = value);
-
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('selectedChildId', value.id);
-                  await prefs.setString('selectedChildName', value.name);
-
-                  await _loadGrowthData(value.id);
-                },
-              ),
-            ),
-          ],
+        padding: const EdgeInsets.all(12),
+        child: DropdownButton<Child>(
+          value: selectedChild,
+          isExpanded: true,
+          underline: const SizedBox(),
+          items: children
+              .map(
+                (child) => DropdownMenuItem(
+                  value: child,
+                  child: Text(child.name),
+                ),
+              )
+              .toList(),
+          onChanged: (value) async {
+            if (value == null) return;
+            setState(() => selectedChild = value);
+            await _loadGrowthData(value.id);
+          },
         ),
       ),
     );
   }
 
+  // ================= ACTION BUTTONS =================
   Widget _buildActionButtons(BuildContext context) {
     return Row(
       children: [
@@ -223,29 +211,23 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
             label: const Text('Isi Data'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green[600],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: () async {
-              if (selectedChild == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Pilih anak terlebih dahulu!')),
-                );
-                return;
-              }
+            onPressed: selectedChild == null
+                ? null
+                : () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GrowthDataScreen(
+                          childId: selectedChild!.id,
+                          childName: selectedChild!.name,
+                        ),
+                      ),
+                    );
 
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const GrowthDataScreen()),
-              );
-
-              if (result != null) {
-                await _loadGrowthData(selectedChild!.id);
-              }
-            },
+                    if (result != null) {
+                      await _loadGrowthData(selectedChild!.id);
+                    }
+                  },
           ),
         ),
         const SizedBox(width: 12),
@@ -253,19 +235,20 @@ class _MonitorChildScreenState extends State<MonitorChildScreen> {
           child: OutlinedButton.icon(
             icon: const Icon(Icons.edit),
             label: const Text('Edit Data'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: Colors.green.shade700, width: 1.5),
-            ),
-            onPressed: growthDataList.isEmpty
+            onPressed: selectedChild == null || growthDataList.isEmpty
                 ? null
                 : () async {
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) =>
-                              const GrowthDataScreen(isEdit: true)),
+                        builder: (_) => GrowthDataScreen(
+                          childId: selectedChild!.id,
+                          childName: selectedChild!.name,
+                          isEdit: true,
+                        ),
+                      ),
                     );
+
                     if (result != null) {
                       await _loadGrowthData(selectedChild!.id);
                     }

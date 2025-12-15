@@ -21,6 +21,22 @@ class User {
     required this.lastCheckIn,
   });
 
+  User copyWith({
+    String? fullName,
+    String? email,
+    String? phone,
+  }) {
+    return User(
+      id: id,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      role: role,
+      createdAt: createdAt,
+      lastCheckIn: lastCheckIn,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

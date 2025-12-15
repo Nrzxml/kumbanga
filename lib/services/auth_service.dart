@@ -136,4 +136,68 @@ class AuthService with ChangeNotifier {
     _currentUser = updatedUser;
     notifyListeners();
   }
+
+  void updateLocalUser({
+    required String fullName,
+    required String email,
+    required String phone,
+  }) {
+    if (_currentUser == null) return;
+
+    _currentUser = _currentUser!.copyWith(
+      fullName: fullName,
+      email: email,
+      phone: phone,
+    );
+
+    notifyListeners();
+  }
+
+  Future<bool> updateProfileRemote({
+    required String userId,
+    required String name,
+    required String email,
+    required String phone,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${baseUrl}update_profile.php'),
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {
+          'user_id': userId,
+          'name': name,
+          'email': email,
+          'phone': phone,
+        },
+      );
+
+      debugPrint('UPDATE PROFILE STATUS: ${response.statusCode}');
+      debugPrint('UPDATE PROFILE BODY: ${response.body}');
+
+      final data = json.decode(response.body);
+
+      if (data['success'] == true) {
+        // update user lokal
+        _currentUser = User(
+          id: _currentUser!.id,
+          fullName: name,
+          email: email,
+          phone: phone,
+          role: _currentUser!.role,
+          createdAt: _currentUser!.createdAt,
+          lastCheckIn: _currentUser!.lastCheckIn,
+        );
+
+        notifyListeners();
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('updateProfileRemote error: $e');
+      return false;
+    }
+  }
 }

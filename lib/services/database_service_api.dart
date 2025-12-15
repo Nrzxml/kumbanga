@@ -391,4 +391,29 @@ class DatabaseServiceAPI with ChangeNotifier {
     }
     return [];
   }
+
+  Future<bool> updateUserProfile({
+    required String userId,
+    required String fullName,
+    required String email,
+    required String phone,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${baseUrl}update_profile.php'),
+        body: {
+          'user_id': userId,
+          'full_name': fullName,
+          'email': email,
+          'phone': phone,
+        },
+      );
+
+      final data = _safeJsonDecode(response.body);
+      return data != null && data['success'] == true;
+    } catch (e) {
+      debugPrint("❌ updateUserProfile error: $e");
+      return false;
+    }
+  }
 }

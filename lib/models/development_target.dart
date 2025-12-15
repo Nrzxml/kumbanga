@@ -19,12 +19,23 @@ class DevelopmentTarget {
     this.socialDone = false,
   });
 
-  bool get isCompleted => physicalDone && cognitiveDone && socialDone;
+  // ================== STATUS GETTERS ==================
+
+  /// 🟢 SEMUA SELESAI
+  bool get isAllDone => physicalDone && cognitiveDone && socialDone;
+
+  /// 🟡 SEBAGIAN TERISI (MINIMAL 1)
+  bool get isPartiallyDone => physicalDone || cognitiveDone || socialDone;
+
+  /// ⚪ BELUM ADA YANG DICENTANG
+  bool get isEmpty => !physicalDone && !cognitiveDone && !socialDone;
+
+  // ================== FROM MAP ==================
 
   /// Robust map parser: terima beberapa variasi nama field dari API
   factory DevelopmentTarget.fromMap(Map<String, dynamic> map) {
-    // read age with fallback keys
     int age = 0;
+
     if (map.containsKey('age_in_months')) {
       age = _toInt(map['age_in_months']);
     } else if (map.containsKey('ageInMonths')) {
@@ -59,6 +70,8 @@ class DevelopmentTarget {
     );
   }
 
+  // ================== TO MAP ==================
+
   Map<String, dynamic> toMap() {
     return {
       'age_in_months': ageInMonths,
@@ -71,11 +84,13 @@ class DevelopmentTarget {
     };
   }
 
+  // ================== HELPERS ==================
+
   static int _toInt(dynamic v) {
     if (v == null) return 0;
     if (v is int) return v;
-    if (v is String) return int.tryParse(v) ?? 0;
     if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
     return 0;
   }
 
@@ -84,9 +99,8 @@ class DevelopmentTarget {
     if (v is bool) return v;
     if (v is int) return v != 0;
     if (v is String) {
-      final s = v.trim();
-      if (s == '1' || s.toLowerCase() == 'true') return true;
-      return false;
+      final s = v.trim().toLowerCase();
+      return s == '1' || s == 'true';
     }
     return false;
   }
